@@ -62,7 +62,7 @@ def open_zarr_v3_array(
         chunks = (chunks,)
 
     if dtype is None or not hasattr(dtype, "fields") or dtype.fields is None:
-        if mode in ("r", "r+"):
+        if mode in ("r", "r+", "a"):
             return zarr.open(
                 store=store,
                 mode=mode,

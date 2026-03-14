@@ -49,7 +49,7 @@ diagnostics = [
     "seaborn",
     "anywidget",
 ]
-beam = ["apache-beam", "gcsfs"]
+beam = ["apache-beam >= 2.50.0", "gcsfs"]
 dask = ["dask < 2024.12.0"]
 dask-distributed = ["distributed < 2024.12.0"]
 icechunk = ["icechunk"]
@@ -160,6 +160,9 @@ exclude = [
   "cubed/vendor",
   "docs"
 ]
+
+[tool.uv.sources]
+zarr = { git = "https://github.com/maxrjones/zarr-python.git", branch = "poc/unified-chunk-grid" }
 
 [[tool.mypy.overrides]]
 # Ignore vendored libraries

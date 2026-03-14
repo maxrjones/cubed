@@ -599,19 +599,18 @@ def elemwise(func, *args: "Array", dtype=None) -> "Array":
 
 def _create_zarr_indexer(selection, shape, chunks, regular=True):
     if zarr.__version__[0] == "3":
-        from zarr.core.chunk_grids import RegularChunkGrid
+        from zarr.core.chunk_grids import ChunkGrid
         from zarr.core.indexing import OrthogonalIndexer
 
         if regular:
-            return OrthogonalIndexer(
-                selection, shape, RegularChunkGrid(chunk_shape=chunks)
+            chunk_grid = ChunkGrid.from_regular(
+                array_shape=shape, chunk_shape=chunks
             )
         else:
-            from zarr.core.chunk_grids import RectilinearChunkGrid
-
-            return OrthogonalIndexer(
-                selection, shape, RectilinearChunkGrid(chunk_shapes=chunks)
+            chunk_grid = ChunkGrid.from_rectilinear(
+                chunk_shapes=chunks, array_shape=shape
             )
+        return OrthogonalIndexer(selection, shape, chunk_grid)
     else:
         from zarr.indexing import OrthogonalIndexer
 
