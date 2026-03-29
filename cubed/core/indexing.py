@@ -1,14 +1,15 @@
 import math
+from itertools import accumulate
 from operator import add
 from typing import TYPE_CHECKING
 
 import ndindex
 import numpy as np
-from toolz import accumulate, map
 
 from cubed.backend_array_api import backend_array_to_numpy_array
 from cubed.core.array import CoreArray
 from cubed.core.ops import general_blockwise, map_selection, merge_chunks
+from cubed.primitive.blockwise import ChunkKey, FunctionArgs
 from cubed.utils import array_size, normalize_chunks
 
 if TYPE_CHECKING:
@@ -107,7 +108,7 @@ def index(x, key):
         # use map_selection (which uses general_blockwise) to allow more opportunities for optimization than map_direct
 
         def selection_function(out_key):
-            out_coords = out_key[1:]
+            out_coords = out_key.coords
             return _target_chunk_selection(target_chunks, out_coords, selection)
 
         max_num_input_blocks = _index_num_input_blocks(
@@ -180,7 +181,9 @@ def _target_chunk_selection(target_chunks, idx, selection):
             offset = s.start or 0
             step = s.step if s.step is not None else 1
             start = tuple(
-                accumulate(add, tuple(x * step for x in target_chunks[i]), offset)
+                accumulate(
+                    tuple(x * step for x in target_chunks[i]), add, initial=offset
+                )
             )
             j = idx[i]
             sel.append(slice(start[j], start[j + 1], step))
@@ -189,7 +192,7 @@ def _target_chunk_selection(target_chunks, idx, selection):
         elif isinstance(s, np.ndarray):
             # find the cumulative chunk starts
             target_chunk_starts = [0] + list(
-                accumulate(add, [c for c in target_chunks[i]])
+                accumulate([c for c in target_chunks[i]], add)
             )
             # and use to slice the integer array
             j = idx[i]
@@ -250,16 +253,18 @@ class BlockView:
                     "Only integer, slice, or int array indexes are supported."
                 )
 
-        def key_function(out_key):
-            out_coords = out_key[1:]
+        def back_key_function(out_key: ChunkKey) -> FunctionArgs[ChunkKey]:
+            out_coords = out_key.coords
             in_coords = tuple(
                 get_dim_index(ia, bi) for ia, bi in zip(idx.args, out_coords)
             )
-            return ((self.array.name, *in_coords),)
+            return FunctionArgs(
+                ChunkKey(self.array.name, in_coords), output_name=out_key.name
+            )
 
         out = general_blockwise(
             identity,
-            key_function,
+            back_key_function,
             self.array,
             shapes=[shape],
             dtypes=[self.array.dtype],

@@ -5,10 +5,10 @@ import platform
 import sys
 import sysconfig
 import traceback
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable
 from dataclasses import dataclass
-from functools import partial
-from itertools import islice
+from functools import partial, reduce
+from itertools import accumulate
 from math import prod
 from operator import add, mul
 from pathlib import Path
@@ -18,8 +18,6 @@ from typing import Any, Callable, Dict, Optional, Tuple, Union, cast
 from urllib.parse import quote, unquote, urlsplit, urlunsplit
 
 import numpy as np
-import tlz as toolz
-from toolz import reduce
 
 from cubed.backend_array_api import backend_dtype_to_numpy_dtype
 from cubed.backend_array_api import namespace as nxp
@@ -74,9 +72,9 @@ def get_item(chunks: T_RectangularChunks, idx: Tuple[int, ...]) -> Tuple[slice, 
 
 def _cumsum(seq, initial_zero=False):
     if initial_zero:
-        return tuple(toolz.accumulate(add, seq, 0))
+        return tuple(accumulate(seq, add, initial=0))
     else:
-        return tuple(toolz.accumulate(add, seq))
+        return tuple(accumulate(seq, add))
 
 
 def join_path(dir_url: PathType, child_path: str) -> str:
@@ -334,41 +332,6 @@ def convert_to_bytes(size: Union[int, float, str]) -> int:
         return size
     else:
         raise ValueError(f"Invalid value: {size}. Must be a positive value")
-
-
-# Based on more_itertools
-def split_into(iterable, sizes):
-    """Yield a list of sequential items from *iterable* of length 'n' for each
-    integer 'n' in *sizes*."""
-    it = iter(iterable)
-    for size in sizes:
-        yield list(islice(it, size))
-
-
-def map_nested(func, seq):
-    """Apply a function inside nested lists or iterators, while preserving
-    the nesting, and the collection or iterator type.
-
-    Examples
-    --------
-
-    >>> from cubed.utils import map_nested
-    >>> inc = lambda x: x + 1
-    >>> map_nested(inc, [[1, 2], [3, 4]])
-    [[2, 3], [4, 5]]
-
-    >>> it = map_nested(inc, iter([1, 2]))
-    >>> next(it)
-    2
-    >>> next(it)
-    3
-    """
-    if isinstance(seq, list):
-        return [map_nested(func, item) for item in seq]
-    elif isinstance(seq, Iterator):
-        return map(lambda item: map_nested(func, item), seq)
-    else:
-        return func(seq)
 
 
 def _broadcast_trick_inner(

@@ -22,6 +22,7 @@ from cubed.core.ops import (
 )
 from cubed.core.optimization import fuse_all_optimize_dag, multiple_inputs_optimize_dag
 from cubed.core.plan import ArrayRole
+from cubed.primitive.blockwise import ChunkKey, FunctionArgs
 from cubed.runtime.utils import raise_if_computes
 from cubed.storage.store import open_storage_array
 from cubed.tests.utils import ALL_EXECUTORS, MAIN_EXECUTORS, TaskCounter, create_zarr
@@ -132,6 +133,41 @@ def test_store(tmp_path, spec, executor):
     assert_array_equal(target[:], np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]]))
 
 
+def test_store_lazy_compute(tmp_path, spec):
+    a = xp.asarray([[1, 2, 3], [4, 5, 6], [7, 8, 9]], chunks=(2, 2), spec=spec)
+
+    store = tmp_path / "source.zarr"
+    target = open_storage_array(
+        store, mode="w", shape=a.shape, dtype=a.dtype, chunks=a.chunksize
+    )
+
+    (b,) = cubed.store(a, target, compute=False)
+
+    # target has not been computed yet
+    with pytest.raises(AssertionError):
+        assert_array_equal(target[:], np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]]))
+
+    b.compute()
+    assert_array_equal(target[:], np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]]))
+
+
+def test_store_lazy_compute_more(tmp_path, spec):
+    a = xp.asarray([[1, 2, 3], [4, 5, 6], [7, 8, 9]], chunks=(2, 2), spec=spec)
+
+    store = tmp_path / "source.zarr"
+    target = open_storage_array(
+        store, mode="w", shape=a.shape, dtype=a.dtype, chunks=a.chunksize
+    )
+
+    (b,) = cubed.store(a, target, compute=False)
+
+    # do a further computation and check that store has not been optimized away
+    c = b + 1
+    res = c.compute()
+    assert_array_equal(target[:], np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]]))
+    assert_array_equal(res, np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]]) + 1)
+
+
 def test_store_multiple(tmp_path, spec, executor):
     a = xp.asarray([[1, 2, 3], [4, 5, 6], [7, 8, 9]], chunks=(2, 2), spec=spec)
     b = xp.asarray([[1, 1, 1], [1, 1, 1], [1, 1, 1]], chunks=(2, 2), spec=spec)
@@ -185,6 +221,25 @@ def test_to_zarr_array(tmp_path, spec, executor):
         store=store,
     )
     cubed.to_zarr(a, z, executor=executor)
+    res = open_storage_array(store, mode="r")
+    assert_array_equal(res[:], np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]]))
+
+
+def test_to_zarr_lazy_compute(tmp_path, spec):
+    a = xp.asarray([[1, 2, 3], [4, 5, 6], [7, 8, 9]], chunks=(2, 2), spec=spec)
+    store = tmp_path / "output.zarr"
+    z = create_zarr(
+        np.zeros(a.shape, dtype=a.dtype),
+        chunks=(2, 2),
+        store=store,
+    )
+    b = cubed.to_zarr(a, z, compute=False)
+    # target has not been computed yet
+    res = open_storage_array(store, mode="r")
+    with pytest.raises(AssertionError):
+        assert_array_equal(res[:], np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]]))
+
+    b.compute()
     res = open_storage_array(store, mode="r")
     assert_array_equal(res[:], np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]]))
 
@@ -979,12 +1034,12 @@ def sqrts(x):
         yield nxp.sqrt(x)
         yield -nxp.sqrt(x)
 
-    def block_function(out_key):
-        return ((x.name,) + out_key[1:],)
+    def back_key_function(out_key):
+        return FunctionArgs(ChunkKey(x.name, out_key.coords), output_name=out_key.name)
 
     return general_blockwise(
         _sqrts,
-        block_function,
+        back_key_function,
         x,
         shapes=[x.shape, x.shape],
         dtypes=[x.dtype, x.dtype],
