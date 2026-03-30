@@ -25,7 +25,9 @@ from cubed.runtime.utils import (
 from cubed.spec import Spec
 
 
-def exec_stage_func(input, func=None, config=None, name=None, compute_id=None):
+def exec_stage_func(
+    input, func=None, config=None, name=None, compute_id=None, **kwargs
+):
     return func(input, config=config)
 
 
@@ -63,13 +65,17 @@ class SingleThreadedExecutor(DagExecutor):
 
 
 @execution_timing
-def run_func_threads(input, func=None, config=None, name=None, compute_id=None):
+def run_func_threads(
+    input, func=None, config=None, name=None, compute_id=None, **kwargs
+):
     return func(input, config=config)
 
 
 @profile_memray
 @execution_stats
-def run_func_processes(input, func=None, config=None, name=None, compute_id=None):
+def run_func_processes(
+    input, func=None, config=None, name=None, compute_id=None, **kwargs
+):
     return func(input, config=config)
 
 
