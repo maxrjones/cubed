@@ -630,12 +630,7 @@ def _create_zarr_indexer(selection, shape, chunks, regular=True):
         from zarr.core.chunk_grids import ChunkGrid
         from zarr.core.indexing import OrthogonalIndexer
 
-        if regular:
-            chunk_grid = ChunkGrid.from_regular(array_shape=shape, chunk_shape=chunks)
-        else:
-            chunk_grid = ChunkGrid.from_rectilinear(
-                chunk_shapes=chunks, array_shape=shape
-            )
+        chunk_grid = ChunkGrid.from_sizes(array_shape=shape, chunk_sizes=chunks)
         return OrthogonalIndexer(selection, shape, chunk_grid)
     else:
         from zarr.indexing import OrthogonalIndexer
